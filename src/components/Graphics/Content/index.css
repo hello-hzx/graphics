@@ -1,0 +1,40 @@
+.content .ant-collapse, .ant-collapse-item, .ant-collapse-content {
+  border: 0 !important;
+}
+
+.content .ant-collapse {
+  background-color: #fff;
+}
+
+.content .ant-collapse-item {
+  margin-bottom: 10px;
+   background-color: #fafafa;
+}
+
+.graphics-item {
+  display : inline-block;
+  text-align: center;
+  margin-right: 10px;
+  width: 200px;
+  height: 250px;
+  border: 1px #ffffff solid;
+}
+
+.ant-image {
+  margin-top: 10px;
+}
+
+.graphics-item:hover {
+  border: 1px #2568b9 solid;
+}
+
+.graphic-name {
+  margin: 10px auto 0;
+  width: 170px;
+}
+
+.graphics-item .ant-checkbox-wrapper {
+  float: left;
+  top: 1px;
+  left: 5px;
+}
