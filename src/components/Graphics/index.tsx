@@ -11,7 +11,6 @@ function Graphics(props: GraphicsSpace.Props) {
             <Option/>
             <Content/>
         </Fragment>
-
     );
 }
 

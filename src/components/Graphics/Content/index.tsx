@@ -16,7 +16,7 @@ function Content(props: ContentSpace.Props) {
     const [operatedGraphicsId, setOperatedGraphicsId] = useState<number>(0);
     // let operatedGraphicsId: number = 0;
     // 操作类型
-    let isUpdate: boolean = true;
+    // let isUpdate: boolean = true;
 
     // 右键操作graphics菜单
     const menu = (
@@ -50,7 +50,7 @@ function Content(props: ContentSpace.Props) {
         const graphicsJson = service.findByKey(Constant.GRAPHICS_KEY);
         const graphicsList = JSON.parse(graphicsJson);
 
-        // const populatedGroupList = [];
+        const populatedGroupList = [];
         const ungroupedGraphics = {id: 0, name: "ungrouped", graphicsList: []}; // 未分组的graphics存到这组
         for (let graphics of graphicsList) {
             const {groupId} = graphics;
@@ -68,6 +68,14 @@ function Content(props: ContentSpace.Props) {
                     break;
                 }
             }
+
+            // const group = groupList.find((group: any) => group.id === groupId);
+            // if (!group.graphicsList) {
+            //     group.graphicsList = [];
+            // }
+            // group.graphicsList.push(graphics);
+
+
         }
         return groupList;
     }

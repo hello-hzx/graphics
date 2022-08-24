@@ -4,7 +4,7 @@ export default class Service {
     static {
         // 预先存入group
         if (!localStorage.getItem(Constant.GROUP_KEY)) {
-            const GROUP = [{id: 1, name: "group1"}, {id: 2, name: "group2"}]
+            const GROUP = [{id: 1, name: "group1"}, {id: 2, name: "group2"}];
             localStorage.setItem(Constant.GROUP_KEY, JSON.stringify(GROUP));
         }
 
