@@ -1,4 +1,4 @@
-import {Button, Modal, Form, Input, Select, Upload} from 'antd';
+import {Modal, Form, Input, Select, Upload, Button} from 'antd';
 import React, {useState} from 'react';
 import {PlusOutlined} from '@ant-design/icons';
 import type {RcFile, UploadProps} from 'antd/es/upload';
@@ -9,28 +9,75 @@ import './index.css';
 
 function GraphicDialog(props: GraphicDialogSpace.Props) {
     const [isModalVisible, setIsModalVisible] = useState(false);
+    const [groupList, setGroupList] = useState([]);
+    const [graphicsBase64, setGraphicsBase64] = useState<string>('');
+    const [formData, setFormData] = useState<any>({});
+    const [fileList, setFileList] = useState<UploadFile[]>([]);
 
-    const [fileList, setFileList] = useState<UploadFile[]>([
-        // {
-        //     uid: '-1',
-        //     name: 'image.png',
-        //     status: 'done',
-        //     url: 'https://zos.alipayobjects.com/rmsportal/jkjgkEfvpUPVyRjUImniVslZfWPnJuuZ.png',
-        // },
-    ]);
-
-
+    const [form] = Form.useForm();
     React.useEffect(() => {
-        // 订阅newGraphic被点击事件
-        const token = PubSub.subscribe(Constant.GRAPHIC_DIALOG_VISIBLE, (message, data) => {
-            setIsModalVisible(data.isModalVisible);
-        })
-        return () => {
-            PubSub.unsubscribe(token);
-        }
-    });
 
-    const graphicsFrom = () => {
+        // 订阅groupList数据
+        const groupListToken = PubSub.subscribe(Constant.GROUP_LIST_DATA, (message, data) => {
+            setGroupList(data.groupList);
+        })
+
+        // 订阅newGraphic被点击事件
+        const graphicDialogToken = PubSub.subscribe(Constant.GRAPHIC_DIALOG_VISIBLE, (message, data) => {
+            const {isModalVisible, graphics} = data;
+
+            if (graphics) { // 编辑：携带了graphics数据
+                // 数据回显
+                form.setFieldValue("name", graphics.name);
+                form.setFieldValue("group", graphics.groupId);
+
+                // 显示缩略图
+                const {id, name, base64Url} = graphics;
+                const fileList = [{
+                    uid: id,
+                    name,
+                    status: 'done',
+                    url: base64Url
+                }]
+                setFileList(fileList as UploadFile[]);
+
+                // graphics base64Url
+                setGraphicsBase64(base64Url);
+
+                // 填充formData
+                setFormData({
+                    id,
+                    name,
+                    groupId: graphics.groupId,
+                })
+            } else {
+
+                setFormData({});
+                setFileList([]);
+                setGraphicsBase64("");
+                form.setFieldValue("name", "");
+                form.setFieldValue("group", null);
+            }
+
+            setIsModalVisible(isModalVisible);
+        });
+
+        return () => {
+            PubSub.unsubscribe(graphicDialogToken);
+            PubSub.unsubscribe(groupListToken);
+        }
+    }, [groupList]);
+
+    const saveName = (event: any) => {
+        formData['name'] = event.target.value;
+        setFormData(formData);
+    }
+    const saveGroup = (event: any) => {
+        formData['groupId'] = event;
+        setFormData(formData);
+    }
+
+    const graphicsForm = () => {
 
         const getBase64 = (file: RcFile): Promise<string> =>
             new Promise((resolve, reject) => {
@@ -41,24 +88,15 @@ function GraphicDialog(props: GraphicDialogSpace.Props) {
             });
 
         const handleChange: UploadProps['onChange'] = ({fileList: newFileList}) => {
-
-            getBase64(fileList[0] as RcFile).then((result) =>{
-                console.log("result",result);
+            getBase64(fileList[0] as RcFile).then((result) => {
+                setGraphicsBase64(result);
             });
-
 
             setFileList(newFileList);
             const formData = new FormData();
             fileList.forEach(file => {
                 formData.append('files[]', file as RcFile);
             });
-            const file = newFileList[newFileList.length - 1];
-            console.log("file", file);
-            const url = file.url;
-            console.log("url", url);
-            let size = file.size;
-            console.log("size", size);
-            console.log("size", size);
         };
 
         const uploadButton = (
@@ -76,7 +114,6 @@ function GraphicDialog(props: GraphicDialogSpace.Props) {
                 setFileList(newFileList);
             },
             beforeUpload: file => {
-                console.log("beforeUpload", file);
                 const graphicsList = fileList;
                 graphicsList.push(file);
                 setFileList(graphicsList);
@@ -85,21 +122,12 @@ function GraphicDialog(props: GraphicDialogSpace.Props) {
             fileList,
         };
 
-        const onFinish = (values: any) => {
-            console.log('Success:', values);
-        };
-
-        const onFinishFailed = (errorInfo: any) => {
-            console.log('Failed:', errorInfo);
-        };
-
         return (
             <Form
+                form={form}
                 name="basic"
                 labelCol={{span: 4}}
                 wrapperCol={{span: 16}}
-                onFinish={onFinish}
-                onFinishFailed={onFinishFailed}
                 autoComplete="off"
                 labelAlign={"left"}
             >
@@ -120,7 +148,9 @@ function GraphicDialog(props: GraphicDialogSpace.Props) {
                     name="name"
                     rules={[{required: true}]}
                 >
-                    <Input placeholder={"Please input name!"}/>
+                    <Input onChange={saveName}
+                           placeholder={Constant.NAME_INPUT_PLACEHOLDER}
+                    />
                 </Form.Item>
 
                 <Form.Item
@@ -128,17 +158,15 @@ function GraphicDialog(props: GraphicDialogSpace.Props) {
                     name="group"
                 >
                     <Select
-                        mode="multiple"
-                        placeholder="Please select the graphics group!"
-                        // value={selectedItems}
-                        // onChange={setSelectedItems}
+                        placeholder={Constant.GROUP_INPUT_PLACEHOLDER}
+                        onChange={saveGroup}
                         showArrow={true}
                     >
-                        {/*{FORMATS.map(item => (*/}
-                        {/*    <Select.Option key={item} value={item}>*/}
-                        {/*        {item}*/}
-                        {/*    </Select.Option>*/}
-                        {/*))}*/}
+                        {groupList.map((group: any) => (
+                            <Select.Option key={group.id} value={group.id}>
+                                {group.name}
+                            </Select.Option>
+                        ))}
                     </Select>
                 </Form.Item>
 
@@ -148,9 +176,7 @@ function GraphicDialog(props: GraphicDialogSpace.Props) {
                 >
                     <Select
                         mode="multiple"
-                        placeholder="Please select the graphics keyword!"
-                        // value={selectedItems}
-                        // onChange={setSelectedItems}
+                        placeholder={Constant.KEYWORD_INPUT_PLACEHOLDER}
                         showArrow={true}
                     >
                         {/*{FORMATS.map(item => (*/}
@@ -160,28 +186,25 @@ function GraphicDialog(props: GraphicDialogSpace.Props) {
                         {/*))}*/}
                     </Select>
                 </Form.Item>
-
-                {/*<Form.Item wrapperCol={{offset: 8, span: 16}}>*/}
-                {/*    <Button type="primary" htmlType="submit">*/}
-                {/*        Submit*/}
-                {/*    </Button>*/}
-                {/*</Form.Item>*/}
             </Form>
         );
     };
 
     const handleOk = () => {
+        // 发布保存或更新graphics消息
+        PubSub.publish(Constant.SAVE_OR_UPDATE_GRAPHICS, {formData: formData, graphicsBase64: graphicsBase64});
         setIsModalVisible(false);
     };
 
     const handleCancel = () => {
+        setGraphicsBase64("");
         setIsModalVisible(false);
     };
 
     return (
         <div className={"graphic-dialog"}>
             <Modal title="New Graphics" visible={isModalVisible} onOk={handleOk} onCancel={handleCancel}>
-                {graphicsFrom()}
+                {graphicsForm()}
             </Modal>
         </div>
     );

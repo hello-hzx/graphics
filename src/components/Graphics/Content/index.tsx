@@ -1,22 +1,123 @@
-import {Collapse, Image, Checkbox, Dropdown, Menu} from 'antd';
-import type {CheckboxChangeEvent} from 'antd/es/checkbox';
+import {Collapse, Image, Dropdown, Menu} from 'antd';
 import React, {useState} from 'react';
+import PubSub from "pubsub-js";
+import DeleteGraphicDialog from "../DeleteGraphicsDialog";
 import Service from "../../Service";
 import Constant from "../../Common/Constant";
-import PubSub from "pubsub-js";
 import './index.css'
-import DeleteGraphicDialog from "../DeleteGraphicsDialog";
 
 
-function Content(props: ContentSpace.Props) {
+const Content = () => {
     const {Panel} = Collapse;
     const service = new Service();
     const [groupList, setGroupList] = useState<any[]>([]);
-    // 被操作的graphics的id
-    const [operatedGraphicsId, setOperatedGraphicsId] = useState<number>(0);
-    // let operatedGraphicsId: number = 0;
-    // 操作类型
-    // let isUpdate: boolean = true;
+    // 被操作的graphics
+    const [operatedGraphics, setOperatedGraphics] = useState<any>(null);
+    // 被操作的元素类型，graphics或group
+    const [operatedElement, setOperatedElement] = useState<any>("");
+    const [keyword, setKeyword] = useState("");
+
+
+    const addGraphicsToGroup = () => {
+        // 获取groupList, graphicsList
+        const groupList = service.findByKey(Constant.GROUP_KEY);
+        // const graphicsList = service.findByKey(Constant.GRAPHICS_KEY);
+        const graphicsList = service.findGraphicsByKeyword(keyword);
+
+        // 发布groupList的信息，用于newGraphics
+        PubSub.publish(Constant.GROUP_LIST_DATA, {groupList: groupList});
+        // 没有graphics
+        if (!graphicsList.length) {
+            return groupList;
+        }
+
+        // 未分组的graphics存到这组
+        const ungroupedGraphics: any = {
+            id: Constant.UNGROUPED_GRAPHICS_ID,
+            name: Constant.UNGROUPED_GRAPHICS_NAME,
+            graphicsList: []
+        };
+        for (let graphics of graphicsList) {
+            const {groupId} = graphics;
+            const group = groupList.find((group: any) => group.id === groupId);
+
+            // 未分组
+            if (!group) {
+                ungroupedGraphics.graphicsList.push(graphics);
+                continue;
+            }
+
+            if (!group.graphicsList) {
+                group.graphicsList = [];
+            }
+            group.graphicsList.push(graphics);
+        }
+
+        return groupList;
+    };
+
+    React.useEffect(() => {
+        // 填充groupList
+        setGroupList(addGraphicsToGroup());
+
+        // 确认删除graphics事件
+        const okDeleteToken = PubSub.subscribe(Constant.CONFIRM_DELETE_GRAPHIC, () => {
+            if (operatedElement === "group") {
+                service.deleteGroupById(operatedGraphics.id);
+            } else {
+                service.deleteGraphicsById(operatedGraphics.id);
+            }
+            setGroupList(addGraphicsToGroup());
+        });
+
+        // 确认新建或更新graphics
+        const okGraphicsToken = PubSub.subscribe(Constant.SAVE_OR_UPDATE_GRAPHICS, (_, data) => {
+            const {graphicsBase64, formData} = data;
+            const {id} = formData;
+
+            if (id) {  // 更新
+                service.updateGraphics(formData, graphicsBase64);
+            } else {
+                service.saveGraphics(formData, graphicsBase64);
+            }
+            setGroupList(addGraphicsToGroup());
+        });
+
+        // 确认新建或更新group
+        const okGroupToken = PubSub.subscribe(Constant.SAVE_OR_UPDATE_GROUP, (_, data) => {
+            const {group: {id, name}} = data;
+
+            if (id) {
+                // TODO 更新
+            } else {
+                service.saveGroup(name);
+            }
+
+            setGroupList(addGraphicsToGroup());
+        });
+
+        // search graphics
+        const searchGraphicsToken = PubSub.subscribe(Constant.SEARCH_GRAPHIC, (_, data) => {
+            const {keyword} = data;
+            setKeyword(keyword);
+            setGroupList(addGraphicsToGroup());
+        });
+
+        return () => {
+            PubSub.unsubscribe(okDeleteToken);
+            PubSub.unsubscribe(okGraphicsToken);
+            PubSub.unsubscribe(okGroupToken);
+            PubSub.unsubscribe(searchGraphicsToken);
+        }
+    }, [operatedGraphics, keyword]);
+
+    // graphics 被右键后调用，用于收集被点击的graphics
+    const onGraphicsContextMenu = (graphics: any, type: string) => {
+        return () => {
+            setOperatedElement(type);
+            setOperatedGraphics(graphics);
+        }
+    };
 
     // 右键操作graphics菜单
     const menu = (
@@ -26,6 +127,12 @@ function Content(props: ContentSpace.Props) {
                     label: '编辑',
                     key: '1',
                     onClick: () => {
+                        // 发布编辑graphics消息(弹出对话框)
+                        PubSub.publish(Constant.GRAPHIC_DIALOG_VISIBLE, {
+                            isModalVisible: true,
+                            graphics: operatedGraphics,
+
+                        });
                     },
                 },
                 {
@@ -34,93 +141,35 @@ function Content(props: ContentSpace.Props) {
                     onClick: () => {
                         // 发布删除消息(弹出对话框)
                         PubSub.publish(Constant.DELETE_GRAPHIC_DIALOG_VISIBLE,
-                            {isModalVisible: true});
+                            {isModalVisible: true, operatedType: operatedElement});
                     },
                 },
             ]}
         />
     );
 
-
-    const populateContentData = () => {
-        // 获取group
-        const groupsJson = service.findByKey(Constant.GROUP_KEY);
-        const groupList = JSON.parse(groupsJson);
-        // 获取graphics
-        const graphicsJson = service.findByKey(Constant.GRAPHICS_KEY);
-        const graphicsList = JSON.parse(graphicsJson);
-
-        const populatedGroupList = [];
-        const ungroupedGraphics = {id: 0, name: "ungrouped", graphicsList: []}; // 未分组的graphics存到这组
-        for (let graphics of graphicsList) {
-            const {groupId} = graphics;
-
-            if (groupId <= 0) {
-                continue;
-            }
-
-            for (let group of groupList) {
-                if (group.id === groupId) {
-                    if (!group.graphicsList) {
-                        group.graphicsList = [];
-                    }
-                    group.graphicsList.push(graphics);
-                    break;
-                }
-            }
-
-            // const group = groupList.find((group: any) => group.id === groupId);
-            // if (!group.graphicsList) {
-            //     group.graphicsList = [];
-            // }
-            // group.graphicsList.push(graphics);
-
-
-        }
-        return groupList;
-    }
-
-    React.useEffect(() => {
-        // 填充groupList
-        setGroupList(populateContentData());
-
-        // 确认删除graphics事件
-        const okDeleteToken = PubSub.subscribe(Constant.CONFIRM_DELETE_GRAPHIC, () => {
-            console.log("operatedGraphicsId", operatedGraphicsId);
-            service.deleteGraphicsById(operatedGraphicsId);
-            setGroupList(populateContentData());
-        });
-
-        return () => {
-            PubSub.unsubscribe(okDeleteToken);
-        }
-    }, [operatedGraphicsId]);
-
-
-    // graphics 被选中后回调
-    const graphicsSelected = (e: CheckboxChangeEvent) => {
-        // console.log(`checked = ${e.target.checked}`);
-    };
-
-    // graphics 被右键后调用，用于收集被点击的graphics的id
-    const onGraphicsContextMenu = (graphicsId: number) => {
-        return () => {
-            setOperatedGraphicsId(graphicsId);
-        }
-    };
-
-    // 切换面板的调用
-    const onChangePanel = (key: string | string[]) => {
-        // console.log(key);
-    };
-
     return (
         <div className={"content"}>
-            <Collapse onChange={onChangePanel}>
+            <Collapse>
                 {
                     groupList.map(group => {
                         return (
-                            <Panel header={group.name} key={group.name}>
+                            <Panel
+                                // header={group.name}
+                                header={(
+                                    <Dropdown
+                                        overlay={menu}
+                                        trigger={['contextMenu']}
+                                    >
+                                        <div
+                                            className={"group-name-area"}
+                                            onContextMenu={onGraphicsContextMenu(group, "group")}
+                                        >{group.name}</div>
+                                    </Dropdown>
+                                )}
+                                key={group.name}
+                                className={"site-collapse-custom-panel"}
+                            >
                                 {
                                     !group.graphicsList
                                         ? null
@@ -137,12 +186,13 @@ function Content(props: ContentSpace.Props) {
                                                     >
                                                         <div
                                                             className="site-dropdown-context-menu"
-                                                            onContextMenu={onGraphicsContextMenu(graphics.id)}
+                                                            onContextMenu={onGraphicsContextMenu(graphics, "graphics")}
                                                         >
                                                           <Image className={"graphic"}
                                                                  width={170}
+                                                                 height={160}
                                                                  preview={false}
-                                                                 src={graphics.url}
+                                                                 src={graphics.base64Url}
                                                           />
                                                         </div>
                                                       </Dropdown>
@@ -163,11 +213,6 @@ function Content(props: ContentSpace.Props) {
         </div>
     );
 
-}
-
-export namespace ContentSpace {
-    export interface Props {
-    }
 }
 
 export default Content;

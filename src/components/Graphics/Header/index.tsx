@@ -1,6 +1,8 @@
-import {Input, Select, Button } from 'antd';
+import {Input, Select, Button} from 'antd';
 import React, {useState} from 'react';
 import './index.css'
+import PubSub from "pubsub-js";
+import Constant from "../../Common/Constant";
 
 function Header(props: HeaderSpace.Props) {
     const FORMATS = ['png', 'jpg'];
@@ -38,10 +40,14 @@ function Header(props: HeaderSpace.Props) {
         );
     };
 
+    const searchGraphics = (event: any) => {
+        const keyword = event.target.value;
+        PubSub.publish(Constant.SEARCH_GRAPHIC, {keyword});
+    }
 
     return (
         <div className={"header"}>
-            <Input placeholder="Please input" prefix={<SearchOutlined/>}/>
+            <Input placeholder="Please input" prefix={<SearchOutlined/>} onPressEnter={event => searchGraphics(event)}/>
             <FormatSelect/>
             <Button type="link">Reset</Button>
         </div>

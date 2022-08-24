@@ -3,15 +3,17 @@ import {Modal} from "antd";
 import PubSub from "pubsub-js";
 import {useEffect, useState} from "react";
 
-function DeleteGraphicDialog() {
+const DeleteGraphicDialog = (props: DeleteGraphicDialogSpace.Props) => {
     const [isModalVisible, setIsModalVisible] = useState(false);
+    const [operatedType, setOperatedType] = useState("");
 
 
     useEffect(() => {
         // 订阅deleteGraphic击事件
         const token = PubSub.subscribe(Constant.DELETE_GRAPHIC_DIALOG_VISIBLE, (message, data) => {
-            setIsModalVisible(data.isModalVisible);
-
+            const {isModalVisible, operatedType} = data;
+            setIsModalVisible(isModalVisible);
+            setOperatedType(operatedType);
         });
 
         return () => {
@@ -31,11 +33,22 @@ function DeleteGraphicDialog() {
 
     return (
         <div className={"graphic-dialog"}>
-            <Modal title="New Graphics" visible={isModalVisible} onOk={handleOk} onCancel={handleCancel}>
-                <p>{Constant.DELETE_GRAPHIC_MESSAGE}</p>
+            <Modal
+                title={operatedType === "group" ? Constant.DELETE_GROUP_DIALOG_TITLE : Constant.DELETE_GRAPHICS_DIALOG_TITLE}
+                visible={isModalVisible}
+                onOk={handleOk}
+                onCancel={handleCancel}
+            >
+                <p>{operatedType === "group" ? Constant.DELETE_GROUP_MESSAGE : Constant.DELETE_GRAPHIC_MESSAGE}</p>
             </Modal>
         </div>
     );
+}
+
+export namespace DeleteGraphicDialogSpace {
+    export interface Props {
+
+    }
 }
 
 export default DeleteGraphicDialog;
